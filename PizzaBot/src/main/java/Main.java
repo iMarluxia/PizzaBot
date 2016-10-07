@@ -12,7 +12,7 @@ public class Main {
 
     public static void main(String[] args) {
 
-        String token = "";
+        String token = "MjMzNzc2MDQ0MDkwMzI3MDQw.CtraBQ.CZ1_Ynb_VEmHp94I2YrtXto0pCM";
         if (args.length == 0 && token == null) {
             throw new IllegalArgumentException("Please enter token");
         }

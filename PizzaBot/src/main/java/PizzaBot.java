@@ -2,17 +2,17 @@ import sx.blah.discord.api.ClientBuilder;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.events.EventSubscriber;
 import sx.blah.discord.handle.impl.events.*;
-import sx.blah.discord.handle.obj.IChannel;
-import sx.blah.discord.handle.obj.IGuild;
-import sx.blah.discord.handle.obj.IMessage;
-import sx.blah.discord.handle.obj.IUser;
+import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.DiscordException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sx.blah.discord.util.Image;
 
-import java.util.List;
-import java.util.Random;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -24,10 +24,30 @@ public class PizzaBot {
     private IDiscordClient client;
     private String token;
     private final AtomicBoolean reconnect = new AtomicBoolean(true);
-    private IUser iconChooser;
+    //Create an array of ChannelIDs and UserIDs for the icon chooser
+    private List<List<String>> iconChoosers;
 
-    public PizzaBot(String token) {
-        this.token = token;
+    public PizzaBot() {
+        try {
+            //System.out.println(System.getProperty("user.dir"));
+            Scanner scanner = new Scanner(new File("PizzaBot.txt"));
+            token = scanner.nextLine();
+            while (scanner.hasNextLine()) {
+                iconChoosers = new ArrayList<List<String>>();
+                String currentUser = scanner.nextLine();
+                List<String> currentList = new ArrayList<String>();
+                currentList.add(currentUser.split(":")[0]);
+                currentList.add(currentUser.split(":")[1]);
+                iconChoosers.add(currentList);
+            }
+
+
+        }catch (FileNotFoundException e) {
+            log.warn("token file not found", e);
+        }catch (NoSuchElementException e) {
+            log.warn("Check PizzaBot.txt", e);
+        }
+
     }
 
     public void login() throws DiscordException {
@@ -76,7 +96,13 @@ public class PizzaBot {
             if(message.getContent().startsWith("!chooseIconWinner")) {
                 if(checkAdmin(messageAuthor, message)) {
                     pickIcon(messageChannel);
-                    messageChannel.sendMessage("@" + iconChooser.getName() + " has won the drawing!");
+                    for (List<String> user : iconChoosers) {
+                        if (user.get(1).equals(messageGuild.getID())) { //Check that the channelIDs are equal
+                            //Print UserID
+                            messageChannel.sendMessage(user.get(0) + " has won the drawing!");
+                        }
+                    }
+
                 }else {
                     message.reply("Sorry you are not an Administrator");
                 }
@@ -84,19 +110,22 @@ public class PizzaBot {
             }
 
             if(messageContent.startsWith("!setIcon")) {
-                if(messageAuthor.equals(iconChooser)) {
-                    if(message.getAttachments().size() != 0) {
-                        List<IMessage.Attachment> attachments = message.getAttachments();
-                        String imageUrl = attachments.get(0).getUrl();
-                        Image image = Image.forUrl("png", imageUrl);
-                        messageGuild.changeIcon(image);
-                        messageChannel.sendMessage("Channel icon changed!");
-                    }else {
-                        messageChannel.sendMessage("You did not include a picture to change the icon to.");
+                for(List<String> user : iconChoosers) { //Search through the icon choosers and match the GuildDs and UserIDs
+                    //See if the UserIDs and ChannelIDs match
+                    if(message.getID().equals(user.get(0)) && message.getGuild().getID().equals(user.get(1))) {
+                        if(message.getAttachments().size() != 0) {
+                            List<IMessage.Attachment> attachments = message.getAttachments();
+                            String imageUrl = attachments.get(0).getUrl();
+                            Image image = Image.forUrl("png", imageUrl);
+                            messageGuild.changeIcon(image);
+                            messageChannel.sendMessage("Channel icon changed!");
+                        }else {
+                            messageChannel.sendMessage("You did not include a picture to change the icon to.");
+                        }
+                        break;
                     }
-                } else {
-                    messageChannel.sendMessage("You are not this weeks winner.");
                 }
+                messageChannel.sendMessage("You are not this weeks winner.");
             }
 
         } catch (Exception e) {
@@ -108,9 +137,23 @@ public class PizzaBot {
     public void pickIcon (IChannel channel) {
         List<IUser> users = channel.getUsersHere();
         Random random = new Random();
-        iconChooser = users.get(random.nextInt(users.size() - 1)); //Get a random user in the channel
+        IUser iconChooser = users.get(random.nextInt(users.size() - 1)); //Get a random user in the channel
         if(iconChooser.isBot())
             pickIcon(channel);
+        List<String> user = new ArrayList<String>() {{
+            add(iconChooser.getID());
+            add(channel.getGuild().getID());
+        }};
+        Path file = Paths.get("PizzaBot.txt");
+        try {
+            //Write the UserID and ChannelID to PizzaBot.txt on line two and onwards
+            // TODO: 10/9/2016 Rewrite the writing lines. Follow: http://winterbe.com/posts/2015/03/25/java8-examples-string-number-math-files/ 
+            //BufferedWriter writer = new BufferedWriter(new File(file));
+            Files.newBufferedWriter(file).append(channel.getGuild().getID() + ":" + iconChooser.getID());
+        }catch(IOException e){
+            log.warn("PizzaBot.txt not found");
+        }
+
     }
 
     public void terminate() {
@@ -123,13 +166,6 @@ public class PizzaBot {
         }
     }
 
-    public IUser getIconChooser() {
-        return iconChooser;
-    }
-
-    public void setIconChooser(IUser iconChooser) {
-        this.iconChooser = iconChooser;
-    }
 
     public boolean checkAdmin(IUser user, IMessage message) {
         if(user.getRolesForGuild(message.getGuild()).get(0).getName().equals("PizzaBot")) {

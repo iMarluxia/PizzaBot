@@ -29,11 +29,12 @@ public class PizzaBot {
 
     public PizzaBot() {
         try {
-            //System.out.println(System.getProperty("user.dir"));
+            System.out.println(System.getProperty("user.dir"));
             Scanner scanner = new Scanner(new File("PizzaBot.txt"));
             token = scanner.nextLine();
+            scanner = new Scanner(new File("IconChoosers.txt"));
+            iconChoosers = new ArrayList<>();
             while (scanner.hasNextLine()) {
-                iconChoosers = new ArrayList<List<String>>();
                 String currentUser = scanner.nextLine();
                 List<String> currentList = new ArrayList<String>();
                 currentList.add(currentUser.split(":")[0]);
@@ -96,10 +97,11 @@ public class PizzaBot {
             if(message.getContent().startsWith("!chooseIconWinner")) {
                 if(checkAdmin(messageAuthor, message)) {
                     pickIcon(messageChannel);
-                    for (List<String> user : iconChoosers) {
+                    for (List<String> user : iconChoosers) { //Navigate through the lit of iconchoosers
                         if (user.get(1).equals(messageGuild.getID())) { //Check that the channelIDs are equal
                             //Print UserID
-                            messageChannel.sendMessage(user.get(0) + " has won the drawing!");
+                            messageChannel.sendMessage(messageGuild.getUserByID(user.get(0)).getName() + " has won the " +
+                                    "drawing!");
                         }
                     }
 
@@ -110,22 +112,41 @@ public class PizzaBot {
             }
 
             if(messageContent.startsWith("!setIcon")) {
-                for(List<String> user : iconChoosers) { //Search through the icon choosers and match the GuildDs and UserIDs
+                boolean userNotFound = true; //Value to see if the user has been found in this search
+
+                for(List<String> user : iconChoosers) { //Search through the icon choosers and match the GuildIDs and
+                    // UserIDs
                     //See if the UserIDs and ChannelIDs match
-                    if(message.getID().equals(user.get(0)) && message.getGuild().getID().equals(user.get(1))) {
+                    if(messageAuthor.getID().equals(user.get(0)) && messageGuild.getID().equals(user.get(1))) {
+                        // Check if they included an attachment
                         if(message.getAttachments().size() != 0) {
                             List<IMessage.Attachment> attachments = message.getAttachments();
                             String imageUrl = attachments.get(0).getUrl();
                             Image image = Image.forUrl("png", imageUrl);
                             messageGuild.changeIcon(image);
                             messageChannel.sendMessage("Channel icon changed!");
-                        }else {
+                            //Check if its a URL starting with http.
+                        } else if(messageContent.substring(9).startsWith("http")) { //9 characters after "!setIcon "
+                            Image image = Image.forUrl("png", messageContent.substring(9));
+                            messageGuild.changeIcon(image);
+                            messageChannel.sendMessage("Channel icon changed!");
+                        } else{
                             messageChannel.sendMessage("You did not include a picture to change the icon to.");
                         }
+                        userNotFound = false; //The user has been found and the icon has been changed, no need for a
+                        // message.
                         break;
                     }
                 }
-                messageChannel.sendMessage("You are not this weeks winner.");
+
+                if (userNotFound) { //If the user has not been found, they are not a winner :(
+                    messageChannel.sendMessage("You are not this weeks winner.");
+                }
+
+            }
+
+            if (messageContent.startsWith("!getUserID")) {
+                message.reply(messageAuthor.getID());
             }
 
         } catch (Exception e) {
@@ -140,18 +161,48 @@ public class PizzaBot {
         IUser iconChooser = users.get(random.nextInt(users.size() - 1)); //Get a random user in the channel
         if(iconChooser.isBot())
             pickIcon(channel);
-        List<String> user = new ArrayList<String>() {{
+
+        List<String> newChooser = new ArrayList<String>() {{
             add(iconChooser.getID());
             add(channel.getGuild().getID());
         }};
-        Path file = Paths.get("PizzaBot.txt");
+
+        int x = 0;
+        if (iconChoosers.size() > 0) {  //Find the user in the list of users and guilds and remove them
+            for (List<String> user : iconChoosers) {
+                if (user.get(1).equals(newChooser.get(1))) {
+                    iconChoosers.remove(x);
+                    break;
+                }
+                x++;
+            }
+        }
+        iconChoosers.add(newChooser);
+
+
+
         try {
-            //Write the UserID and ChannelID to PizzaBot.txt on line two and onwards
-            // TODO: 10/9/2016 Rewrite the writing lines. Follow: http://winterbe.com/posts/2015/03/25/java8-examples-string-number-math-files/ 
-            //BufferedWriter writer = new BufferedWriter(new File(file));
-            Files.newBufferedWriter(file).append(channel.getGuild().getID() + ":" + iconChooser.getID());
+            Path file = Paths.get("IconChoosers.txt");
+            List<String> lines = Files.readAllLines(file);
+            int y = 0; //Start a counter for the line number
+            boolean newGuild = true;
+            for(String line : lines) {
+                String userID = line.split(":")[0];
+                String guildID = line.split(":")[1];
+                if (guildID.equals(channel.getGuild().getID())) {
+                    lines.set(y, iconChooser.getID() + ":" + channel.getGuild().getID());
+                    //Replace the line number with new user
+                    newGuild = false;
+                    break;
+                }
+                y++;
+            }
+            if (newGuild) {
+                lines.add(iconChooser.getID() + ":" + channel.getGuild().getID());
+            }
+            Files.write(file, lines);
         }catch(IOException e){
-            log.warn("PizzaBot.txt not found");
+            log.warn("IconChoosers.txt not found");
         }
 
     }
@@ -169,10 +220,12 @@ public class PizzaBot {
 
     public boolean checkAdmin(IUser user, IMessage message) {
         if(user.getRolesForGuild(message.getGuild()).get(0).getName().equals("PizzaBot")) {
+            //PizzaBot being the admin role
             return true;
         }else {
             return false;
         }
 
     }
+
 }

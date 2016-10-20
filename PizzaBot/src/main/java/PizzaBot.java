@@ -73,7 +73,9 @@ public class PizzaBot {
         }
     }
 
-    @EventSubscriber
+
+    //Bots cannot accept normal invites apparently.
+    /*@EventSubscriber
     public void onGuildInvite(InviteReceivedEvent event) {
         try {
             event.getInvites()[0].accept();
@@ -81,7 +83,7 @@ public class PizzaBot {
         } catch (Exception e) {
             log.warn("Could not accept invite", e);
         }
-    }
+    }*/
 
     @EventSubscriber
     public void onMessage(MessageReceivedEvent event) {
@@ -92,7 +94,8 @@ public class PizzaBot {
             IChannel messageChannel = message.getChannel();
             IGuild messageGuild = message.getGuild();
 
-            log.info("New message from " + message.getAuthor().getName() + ": " + message);
+            //Uncomment if you want to see the messages from each event
+            //log.info("New message from " + messageGuild.getName() + ":" + messageAuthor.getName() + ":" + message);
 
             if(message.getContent().startsWith("!chooseIconWinner")) {
                 if(checkAdmin(messageAuthor, message)) {
@@ -111,7 +114,7 @@ public class PizzaBot {
 
             }
 
-            if(messageContent.startsWith("!setIcon")) {
+            if(messageContent.startsWith("!setNewIcon")) {
                 boolean userNotFound = true; //Value to see if the user has been found in this search
 
                 for(List<String> user : iconChoosers) { //Search through the icon choosers and match the GuildIDs and
@@ -126,8 +129,9 @@ public class PizzaBot {
                             messageGuild.changeIcon(image);
                             messageChannel.sendMessage("Channel icon changed!");
                             //Check if its a URL starting with http.
-                        } else if(messageContent.substring(9).startsWith("http")) { //9 characters after "!setIcon "
-                            Image image = Image.forUrl("png", messageContent.substring(9));
+                            //// TODO: 10/20/2016 Find new way to remove the start of a command
+                        } else if(messageContent.substring(12).startsWith("http")) { //12 characters after "!setNewIcon "
+                            Image image = Image.forUrl("png", messageContent.substring(12));
                             messageGuild.changeIcon(image);
                             messageChannel.sendMessage("Channel icon changed!");
                         } else{
@@ -146,7 +150,32 @@ public class PizzaBot {
             }
 
             if (messageContent.startsWith("!getUserID")) {
-                message.reply(messageAuthor.getID());
+                if (message.getMentions().size() > 0) {
+                    List<IUser> mentions = message.getMentions();
+                    String content = "";
+                    Collections.reverse(mentions);
+                    for (IUser user : mentions) {
+                        content += user.getID() + ", ";
+                    }
+                    message.reply(content);
+                } else {
+                    message.reply(messageAuthor.getID());
+                }
+            }
+
+            if (messageContent.startsWith("!setIconChooser")) {
+                if (checkAdmin(messageAuthor, message)) {
+                    if (message.getMentions().size() == 0) {
+                        message.reply("You did not specify a new winner");
+                    } else if (message.getMentions().size() > 1) {
+                        message.reply("You have specified too many users");
+                    } else if (message.getMentions().size() == 1) {
+                        changeWinner(message.getMentions().get(0), messageGuild);
+                        message.reply("You have successfully set the new user.");
+                    }
+                } else {
+                    message.reply("You are not an Administrator");
+                }
             }
 
         } catch (Exception e) {
@@ -162,25 +191,31 @@ public class PizzaBot {
         if(iconChooser.isBot())
             pickIcon(channel);
 
+        changeWinner(iconChooser, channel.getGuild());
+    }
+
+    public void changeWinner(IUser user, IGuild guild) {
+
         List<String> newChooser = new ArrayList<String>() {{
-            add(iconChooser.getID());
-            add(channel.getGuild().getID());
+            add(user.getID());
+            add(guild.getID());
         }};
 
+        //Find the old user in the list of users/guilds and remove them
         int x = 0;
-        if (iconChoosers.size() > 0) {  //Find the user in the list of users and guilds and remove them
-            for (List<String> user : iconChoosers) {
-                if (user.get(1).equals(newChooser.get(1))) {
+        if (iconChoosers.size() > 0) {
+            for (List<String> oldUser : iconChoosers) {
+                if (oldUser.get(1).equals(newChooser.get(1))) {
                     iconChoosers.remove(x);
                     break;
                 }
                 x++;
             }
         }
+        //Add the new user
         iconChoosers.add(newChooser);
 
-
-
+        //Write the new user to IconChoosers.txt
         try {
             Path file = Paths.get("IconChoosers.txt");
             List<String> lines = Files.readAllLines(file);
@@ -189,8 +224,8 @@ public class PizzaBot {
             for(String line : lines) {
                 String userID = line.split(":")[0];
                 String guildID = line.split(":")[1];
-                if (guildID.equals(channel.getGuild().getID())) {
-                    lines.set(y, iconChooser.getID() + ":" + channel.getGuild().getID());
+                if (guildID.equals(guild.getID())) {
+                    lines.set(y, user.getID() + ":" + guild.getID());
                     //Replace the line number with new user
                     newGuild = false;
                     break;
@@ -198,13 +233,12 @@ public class PizzaBot {
                 y++;
             }
             if (newGuild) {
-                lines.add(iconChooser.getID() + ":" + channel.getGuild().getID());
+                lines.add(user.getID() + ":" + guild.getID());
             }
             Files.write(file, lines);
         }catch(IOException e){
             log.warn("IconChoosers.txt not found");
         }
-
     }
 
     public void terminate() {
@@ -220,7 +254,7 @@ public class PizzaBot {
 
     public boolean checkAdmin(IUser user, IMessage message) {
         if(user.getRolesForGuild(message.getGuild()).get(0).getName().equals("PizzaBot")) {
-            //PizzaBot being the admin role
+            //PizzaBot is the name of the admin role
             return true;
         }else {
             return false;

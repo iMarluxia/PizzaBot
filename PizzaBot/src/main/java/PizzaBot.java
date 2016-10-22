@@ -26,6 +26,9 @@ public class PizzaBot {
     private final AtomicBoolean reconnect = new AtomicBoolean(true);
     //Create an array of ChannelIDs and UserIDs for the icon chooser
     private List<List<String>> iconChoosers;
+    private List<IUser> eligableUsers;
+    private List<IUser> oldEligableUsers;
+    private List<IUser> winners;
 
     public PizzaBot() {
         try {
@@ -34,6 +37,7 @@ public class PizzaBot {
             token = scanner.nextLine();
             scanner = new Scanner(new File("IconChoosers.txt"));
             iconChoosers = new ArrayList<>();
+            winners = new ArrayList<>();
             while (scanner.hasNextLine()) {
                 String currentUser = scanner.nextLine();
                 List<String> currentList = new ArrayList<String>();
@@ -41,6 +45,7 @@ public class PizzaBot {
                 currentList.add(currentUser.split(":")[1]);
                 iconChoosers.add(currentList);
             }
+            eligableUsers = new ArrayList<>();
 
 
         }catch (FileNotFoundException e) {
@@ -99,15 +104,18 @@ public class PizzaBot {
 
             if(message.getContent().startsWith("!chooseIconWinner")) {
                 if(checkAdmin(messageAuthor, message)) {
-                    pickIcon(messageChannel);
-                    for (List<String> user : iconChoosers) { //Navigate through the lit of iconchoosers
-                        if (user.get(1).equals(messageGuild.getID())) { //Check that the channelIDs are equal
-                            //Print UserID
-                            messageChannel.sendMessage(messageGuild.getUserByID(user.get(0)).getName() + " has won the " +
-                                    "drawing!");
+                    if(eligableUsers.size() > 0) {
+                        pickIcon(messageChannel);
+                        for (List<String> user : iconChoosers) { //Navigate through the lit of iconchoosers
+                            if (user.get(1).equals(messageGuild.getID())) { //Check that the channelIDs are equal
+                                //Print UserID
+                                messageChannel.sendMessage(messageGuild.getUserByID(user.get(0)).getName() + " has won the " +
+                                        "drawing!");
+                            }
                         }
+                    }else {
+                        message.reply("There are no users to pick");
                     }
-
                 }else {
                     message.reply("Sorry you are not an Administrator");
                 }
@@ -178,6 +186,99 @@ public class PizzaBot {
                 }
             }
 
+            if (messageContent.startsWith("!joinIcon")) {
+                if (eligableUsers.size() == 0 && winners.size() == 0) {
+                    eligableUsers.add(messageAuthor);
+                    message.reply("has been added to the list!");
+                } else {
+                    boolean userFound = false;
+                    boolean isWinner = false;
+                    for (IUser winner : winners) {
+                        if (messageAuthor.getName().equals(winner.getName())) {
+                            isWinner = true;
+                            break;
+                        }
+                    }
+                    if (!isWinner) {
+                        for (IUser nonwinner : eligableUsers) {
+                            if (messageAuthor.getName().equals(nonwinner.getName())) {
+                                userFound = true;
+                                break;
+                            }
+                        }
+                        if (userFound) {
+                            message.reply("you are already on the list");
+                        } else {
+                            eligableUsers.add(messageAuthor);
+                            message.reply("you have been added to the list");
+                        }
+                    } else {
+                        message.reply("you have already won.");
+                    }
+                }
+
+            }
+
+            if (messageContent.startsWith("!revertIconList")) {
+                if (checkAdmin(messageAuthor, message)) {
+                    eligableUsers = oldEligableUsers;
+                    message.reply("the list has been reverted.");
+                }else {
+                    message.reply("You are not an Administrator");
+                }
+
+            }
+
+            if (messageContent.startsWith("!iconHelp")) {
+                messageChannel.sendMessage(
+                        "!joinIcon   to join the list of available icon choosers\n" +
+                        "!setIcon    to set the icon if you are the winner. You can attach an image or send a link to one.");
+            }
+
+            if (messageContent.equals("/o/")) {
+                messageChannel.sendMessage("\\o\\");
+            }
+            if (messageContent.equals("\\o\\")) {
+                messageChannel.sendMessage("/o/");
+            }
+
+            if (messageContent.equals("!help")) {
+                messageChannel.sendMessage("Information about my commands has been sent to you. Check your PM's");
+                messageAuthor.getOrCreatePMChannel().sendMessage("" +
+                        "```Commands:\t\t\tDescription\n" +
+                        "~~~~~~~~~~~~~~~~~~~~~~~~\t-------------------------\n" +
+                        "!chooseIconWinner\t\tPick the new Icon winner\n" +
+                        "!setNewIcon\t\t\tAs the winner, choose the new icon by attaching an image or sending a link to an image\n" +
+                        "!getUserID\t\t\tGet a user id, mention a user for their ID as well\n" +
+                        "!setIconChooser\t\t\tManually set the icon chooser with a mention\n" +
+                        "!joinIcon\t\t\tJoin the list of available icon choosers\n" +
+                        "!revertIconList\t\t\tSomeone fucked up, revert the new list to the previous one```");
+            }
+
+            if (messageContent.startsWith("!getIconList")) {
+                String listOfUsers = "";
+                for (IUser user : eligableUsers) {
+                    listOfUsers += user.getName() + "\n";
+                }
+                messageChannel.sendMessage("The current list of eligible icon choosers:\n" + listOfUsers);
+            }
+
+            if (messageContent.startsWith("!getWinners")) {
+                String listOfUsers = "";
+                for (IUser user : winners) {
+                    listOfUsers += user.getName() + "\n";
+                }
+                messageChannel.sendMessage("The current list of old icon choosers:\n" + listOfUsers);
+            }
+
+            if (messageContent.startsWith("!resetWinners")) {
+                if(checkAdmin(messageAuthor, message)) {
+                    winners = new ArrayList<>();
+                    message.reply("the list of winners has been reset.");
+                }else {
+                    message.reply("you are not an Administrator.");
+                }
+            }
         } catch (Exception e) {
             log.warn("Could not reply to message", e);
         }
@@ -185,9 +286,17 @@ public class PizzaBot {
     }
 
     public void pickIcon (IChannel channel) {
-        List<IUser> users = channel.getUsersHere();
         Random random = new Random();
-        IUser iconChooser = users.get(random.nextInt(users.size() - 1)); //Get a random user in the channel
+        IUser iconChooser;
+        if(eligableUsers.size() > 1) {
+            iconChooser = eligableUsers.get(random.nextInt(eligableUsers.size() - 1)); //Get a random user in the channel
+        } else {
+            iconChooser = eligableUsers.get(0);
+        }
+
+        oldEligableUsers = eligableUsers;
+        eligableUsers = new ArrayList<>(); //reset the list
+
         if(iconChooser.isBot())
             pickIcon(channel);
 
@@ -239,6 +348,9 @@ public class PizzaBot {
         }catch(IOException e){
             log.warn("IconChoosers.txt not found");
         }
+
+        //Add them to the winners list
+        winners.add(user);
     }
 
     public void terminate() {
@@ -253,13 +365,13 @@ public class PizzaBot {
 
 
     public boolean checkAdmin(IUser user, IMessage message) {
-        if(user.getRolesForGuild(message.getGuild()).get(0).getName().equals("PizzaBot")) {
-            //PizzaBot is the name of the admin role
-            return true;
-        }else {
-            return false;
+        for (IRole role : user.getRolesForGuild(message.getGuild())) {
+            if(role.getName().equals("Moderators")) {
+                //PizzaBot is the name of the admin role
+                return true;
+            }
         }
-
+        return false;
     }
 
 }

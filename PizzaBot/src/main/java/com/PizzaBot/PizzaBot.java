@@ -1,14 +1,20 @@
+package com.PizzaBot;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sx.blah.discord.api.ClientBuilder;
 import sx.blah.discord.api.IDiscordClient;
 import sx.blah.discord.api.events.EventSubscriber;
-import sx.blah.discord.handle.impl.events.*;
+import sx.blah.discord.handle.impl.events.DiscordDisconnectedEvent;
+import sx.blah.discord.handle.impl.events.MessageReceivedEvent;
+import sx.blah.discord.handle.impl.events.ReadyEvent;
 import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.DiscordException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import sx.blah.discord.util.Image;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -20,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 
 public class PizzaBot {
-    private static final Logger log = LoggerFactory.getLogger(PizzaBot.class);
+    private static final Logger log = LoggerFactory.getLogger(com.PizzaBot.PizzaBot.class);
     private IDiscordClient client;
     private String token;
     private final AtomicBoolean reconnect = new AtomicBoolean(true);
@@ -367,7 +373,7 @@ public class PizzaBot {
     public boolean checkAdmin(IUser user, IMessage message) {
         for (IRole role : user.getRolesForGuild(message.getGuild())) {
             if(role.getName().equals("Moderators")) {
-                //PizzaBot is the name of the admin role
+                //com.PizzaBot.PizzaBot is the name of the admin role
                 return true;
             }
         }

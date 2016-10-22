@@ -6,5 +6,7 @@
     </CLASSES>
     <JAVADOC />
     <SOURCES />
+    <jarDirectory url="jar://$PROJECT_DIR$/PizzaBot/slf4j-api-1.7.21.jar!/" recursive="false" />
+    <jarDirectory url="jar://$PROJECT_DIR$/PizzaBot/slf4j-simple-1.7.21.jar!/" recursive="false" />
   </library>
 </component>

@@ -11,6 +11,7 @@ import sx.blah.discord.handle.impl.events.ReadyEvent;
 import sx.blah.discord.handle.obj.*;
 import sx.blah.discord.util.DiscordException;
 import sx.blah.discord.util.Image;
+import sx.blah.discord.util.audio.AudioPlayer;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -65,6 +66,7 @@ public class PizzaBot {
     public void login() throws DiscordException {
         client = new ClientBuilder().withToken(token).login();
         client.getDispatcher().registerListener(this);
+
     }
 
     @EventSubscriber
@@ -104,6 +106,7 @@ public class PizzaBot {
             IUser messageAuthor = message.getAuthor();
             IChannel messageChannel = message.getChannel();
             IGuild messageGuild = message.getGuild();
+            AudioPlayer audioPlayer = AudioPlayer.getAudioPlayerForGuild(messageGuild);
 
             //Uncomment if you want to see the messages from each event
             //log.info("New message from " + messageGuild.getName() + ":" + messageAuthor.getName() + ":" + message);
@@ -283,6 +286,45 @@ public class PizzaBot {
                     message.reply("the list of winners has been reset.");
                 }else {
                     message.reply("you are not an Administrator.");
+                }
+            }
+
+            if (messageContent.startsWith("!musicJoinChannel")) {
+                messageGuild.getVoiceChannelByID(messageContent.split(" ")[1]).join(); //Join 7th voice channel
+
+            }
+
+            if (messageContent.startsWith("!musicLeaveChannel")) {
+                messageGuild.getConnectedVoiceChannel().leave();
+            }
+
+            if (messageContent.startsWith("!musicPause")) {
+                audioPlayer.togglePause();
+            }
+
+            if (messageContent.startsWith("!musicGetQueue")) {
+                audioPlayer.getPlaylist();
+                String newMessage = "";
+                for (AudioPlayer.Track track : audioPlayer.getPlaylist()) {
+                    newMessage += track.toString();
+                }
+                messageChannel.sendMessage(newMessage);
+            }
+
+            if (messageContent.startsWith("!musicSpoopy")) {
+                audioPlayer.queue(new File("xfilesBork.mp3"));
+            }
+
+            if (messageContent.startsWith("!musicSetVolume")) {
+                try {
+                    float volume = Float.valueOf(messageContent.split(" ")[1]);
+                    if (volume < 1) {
+                        audioPlayer.setVolume(volume);
+                    } else {
+                        messageChannel.sendMessage("The volume is set between 0 and 1. For half volume use .5");
+                    }
+                } catch (Exception e) {
+                    log.debug("Wrong volume format", e);
                 }
             }
         } catch (Exception e) {
